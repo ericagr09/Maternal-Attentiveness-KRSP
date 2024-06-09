@@ -1,0 +1,212 @@
+---
+title: "Honors Thesis Analyses"
+author: "Erica Griffin"
+date: "April 22, 2024"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(lme4)
+library(MASS)
+library(lmerTest)
+library(visreg)
+library(car)
+library(DHARMa)
+library(rptR)
+library(texreg)
+library(apaTables)
+nest <- read.csv("nest_binary.csv")
+nest_censored <- read.csv("nest_censored.csv")
+nest_t_return <- read.csv("nest_t_return.csv")
+LRS <- read.csv("lrs_data.csv")
+personality <- read.csv("personality.csv")
+## Get an additional numeric binary for m_return 
+nest$m_return_numeric <- ifelse(nest$m_return == "n", 0, 1)
+## make nest categorical 
+nest$nest <- factor(nest$nest)
+nest_censored$nest <- factor(nest_censored$nest)
+nest_t_return$nest <- factor(nest_t_return$nest)
+```
+
+## Defining Variables
+
+First, let's define all the variables that will be used in our subsequent models:
+
+LRS = Lifetime reproductive Success
+
+ARS = Annual Reproductive Success
+
+m_return = binary variable detailing if the mom returned to the nest or not. Output is "n" or "y"
+
+m_return_numeric = binary variable detailing if the mom returned to the nest or not, where output is either "0" indicating no or "1" indicating yes
+
+scaled_return = scaled time to return to nest (only including squirrels who did return to nest)
+
+scaled_lat = this is the scaled latency variable for each observation. for squirrels who did not return to the nest, this is assigned as 420 seconds.
+
+year = whether or not it was a mast year
+
+experiment = if observation was from food supplementation years or grid
+
+squirrel_id = unique id number for each individual
+
+scaled_density = number of squirrels living near observation nest site (within 130 m radius) scaled by grid_year
+
+scaled_julian_date: julian date of birth for pups scaled according to grid_year
+
+mom_age = age of individual at time of nest
+
+cones_counts = cone abundance of prior year
+
+scaled_pups = number of pups in the nest scaled according to grid_year
+
+nest = whether or not it was the first or second nest intrusion
+
+predator = whether or not it is a low predation year or a high predation year - (high years having a predator count above 300, with low predator years have counts below 40.)
+
+mother_byear = year mom was born. shown to be correlated with LRS in Petrullo et al (2023)
+
+lifetime_cones = total lifetime cones available to mother. shown to be correlated with LRS in Petrullo et al (2023)
+
+percent_return = the percentage that each squirrel returned to the nest, for example, if the value is 33.3, that means the squirrel returned to her nest 33.3% of the time (had a value of "y" for m_return)
+
+## Repeatability Model
+
+Now we are going to determine if each of our measures of maternal attentiveness are repeatable. 
+### m_return
+
+```{r}
+repeatability_result <- rptBinary(m_return_numeric ~ (1|squirrel_id), grname = "squirrel_id", data = nest, link = c("logit", "probit"),
+  CI = 0.95, nboot = 1000, npermut = 0, parallel = FALSE,
+  ncores = NULL, ratio = TRUE, adjusted = TRUE, expect = "meanobs",
+  rptObj = NULL, update = FALSE)
+summary(repeatability_result)
+```
+
+### scaled_latency
+
+```{r}
+repeatability_censored <- rpt(return_lat ~ (1|squirrel_id), data = nest_censored, datatype = "Gaussian", grname = "squirrel_id")
+summary(repeatability_censored)
+```
+
+## Effect of attentiveness on LRS
+
+### scaled_lat - continous measure 
+
+```{r}
+LRS_model1 <- glm.nb(LRS ~  + scaled_lat + mast_encounter1 + scaled_lat*mast_encounter1 + scaled_long + exp + (1/observations), data = LRS) 
+summary(LRS_model1)
+```
+
+
+### m_return - binary measure 
+
+```{r}
+LRS_model2 <- glm.nb(LRS ~ percent_return + mast_encounter1 + percent_return*mast_encounter1 + scaled_long + exp +  (1/observations), data = LRS) 
+summary(LRS_model2)
+```
+
+
+## Effects of interaction of predictors and m_return
+
+Here, we are looking at the effects of maternal attentiveness on annual reproductive success. 
+# Generalized mixed effects models
+
+All of the models below include all of the same predictors, random effects, and covariates. The rationale for including these variables is listed below.
+
+Covariates include:
+
+-   scaled_julian_date\*yearn: The effects of julian date on ARS depend upon if it is a mast year or not.
+
+-   scaled_julian_date\*scaled_density: The effects of julian date on ARS also depend on the amount of squirrels within an area.
+
+-   average_growth\*scaled_density: It has been found that females who produced faster growing offspring have higher ARS when density is high (Fisher et al 2017, Dantzer et al 2013).
+
+Selected interactions with maternal attentiveness (with scaled latency or whether or not the mom returned as a measure of attentiveness):
+
+-   scaled_density: determine if the effects of maternal attentiveness on ARS are dependent on local density.
+
+-   year: determine if the effects of maternal attentiveness on ARS are dependent on whether or not it is a mast year.
+
+-   predator: determine if the effects of maternal attentiveness on ARS are dependent on the year's predator counts, based on high vs low predation risk.
+
+-   cones_counts: determine if the effects of maternal attentiveness on ARS are dependent the availability of cones based on the prior years cone counts.
+
+Random effects include:
+
+-   squirrel_id
+
+-   observer
+
+-   grid_year
+
+### m_return - binary measure 
+
+We first start by running a model where our measure of maternal attentiveness is a binary variable, did the mom return to the nest or did she not. Mothers who returned to the nest are thought to be more attentive than those who did not. This is the code we will use to see if ARS is correlated with any of the predictors, as it is the dataset with the biggest sample size. 
+
+```{r }
+ARS_model_bin <-glm.nb(ARS ~ I(mom_age^2) + n_pups + m_return*scaled_density + m_return*year + m_return*predator +  m_return*cones_counts + scaled_julian_date*year + scaled_julian_date*scaled_density  + (1/squirrel_id) + (1/observer) + (1/grid_year), data = nest)
+```
+
+Here we see that ARS alone is affected by age squared, number of pups in the nest, and predation levels. 
+We can see that the level of cone counts affects the impact that maternal attentiveness (m_return) has on annual reproductive success. It looks like squirrels who have higher cone availability have lower ARS if they returned, and this indicates that high cone availability erases the benefits of being more attentive to pups. 
+
+```{r}
+summary(ARS_model_bin)
+```
+
+Running diagnostics to make sure there are no deviations and the residuals fit the model. All look good for this model
+
+```{r, results='hide'}
+simulationOutput = simulateResiduals(ARS_model_bin, plot = F)
+residuals(simulationOutput, quantileFunction = qnorm)
+```
+
+```{r}
+plot(simulationOutput)
+```
+
+### scaled_latency - continuos measure 
+
+This model is to show if the interaction between latency and a predictor variable influences ARS in any way. Prior models showed that whether or not it was a mast year influenced ARS. In this case, we are using latency to return to pups as a measure of maternal attentiveness, moms with a lower latency are thought to be more attentive, while moms with a higher latency are less attentive.
+
+```{r}
+ARS_censored_pred <-glm.nb(ARS ~ I(mom_age^2) + n_pups + scaled_lat*scaled_density + scaled_lat*year + scaled_lat*predator + scaled_lat*cones_counts + scaled_julian_date*yearn + scaled_julian_date*scaled_density + (1/squirrel_id) + (1/observer) + (1/grid_year), data = nest_censored)
+```
+
+Here we see that there is another significant interaction between maternal attentiveness (scaled latency) and cone counts. Here, it looks like squirrels who had higher cone counts and higher latency to return also had higher ARS, again indicating that high food availability erase the effect of attentiveness on ARS. 
+```{r}
+summary(ARS_censored_pred)
+sample_size <- nobs(ARS_censored_pred)
+print(sample_size)
+```
+
+Running diagnostics to make sure there are no deviations and the residuals fit the model. All look good for this model
+
+```{r, results='hide'}
+simulationOutput = simulateResiduals(ARS_censored_pred, plot = F)
+residuals(simulationOutput, quantileFunction = qnorm)
+```
+
+```{r}
+plot(simulationOutput)
+```
+
+# Personality Models
+
+Here are the models that we are using to test our alternative hypothesis, that attentiveness is correlated with personality. Here we tried to see if maternal attentiveness is correlated to personality
+
+```{r}
+personality1 <- lm(scaled_lat ~ oft1 + mis1 + oft1*mis1 + julian_date + n_pups + (1/grid_year) + (1/observer) + (1/squirrel_id), data = personality)
+summary(personality1)
+null_deviance <- summary(personality1)$null.deviance
+print(null_deviance)
+```
