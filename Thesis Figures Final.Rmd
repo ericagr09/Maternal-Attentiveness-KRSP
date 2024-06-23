@@ -11,7 +11,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 nest <- read.csv("nest_binary.csv")
 nest_censored <- read.csv("nest_censored.csv")
-nest_t_return <- read.csv("nest_t_return.csv")
 LRS <- read.csv("lrs_data.csv")
 personality <- read.csv("personality.csv")
 library(ggplot2)
@@ -27,10 +26,10 @@ library(rptR)
 library(texreg)
 library(apaTables)
 library(paletteer)
-install.packages("ggpubr")
 library(ggpubr)
 library(ggprism)
 library(pubh)
+library(RColorBrewer)
 ```
 
 
@@ -54,14 +53,9 @@ scaled_latfigure <- visreg(LRS_model,
                                       point = list(alpha = 0.5,
                                                    size = 3),
                                       fill = list(alpha = 0)) +
-  scale_color_paletteer_d("ggprism::viridis",
-                          labels = c("No",
-                                     "Yes")) +
-  scale_fill_paletteer_d("ggprism::viridis",
-                         labels = c("No",
-                                     "Yes")) +
-  labs(color = "Mast Encounter?",
-       fill = "Mast Encounter?") +
+scale_color_manual(values = c("#7b3294", "#33a02c")) +  
+scale_fill_manual(values = c("#7b3294", "#33a02c")) +
+  labs(color = "Mast Encounter?", fill = "Mast Encounter?") +
   theme_classic() +
   labs_pubr() + 
 theme(axis.text = element_text(size = 12),
