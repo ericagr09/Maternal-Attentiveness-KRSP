@@ -1,0 +1,197 @@
+---
+title: "Creating Figures"
+author: "Erica Griffin"
+date: "2024-03-09"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+nest <- read.csv("nest_binary.csv")
+nest_censored <- read.csv("nest_censored.csv")
+LRS <- read.csv("lrs_data.csv")
+personality <- read.csv("personality.csv")
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(lme4)
+library(MASS)
+library(lmerTest)
+library(visreg)
+library(car)
+library(DHARMa)
+library(rptR)
+library(texreg)
+library(apaTables)
+library(paletteer)
+library(ggpubr)
+library(ggprism)
+library(pubh)
+library(RColorBrewer)
+library(viridis)
+library(stringr)
+```
+
+```{r models, echo = FALSE}
+LRS_model <- glm.nb(LRS ~ scaled_lat*mast_encounter1 + scaled_long + exp + + (1/observations), data = LRS) 
+LRS_model2 <- glm.nb(LRS ~ percent_return + mast_encounter1 + percent_return*mast_encounter1 + scaled_long + exp +  (1/observations), data = LRS) 
+ARS_model_bin <-glm.nb(ARS ~ I(mom_age^2) + n_pups + m_return*scaled_density + m_return*year + m_return*predator +  m_return*cones_counts + scaled_julian_date*year + scaled_julian_date*local.density  + (1/squirrel_id) + (1/observer) + (1/grid_year), data = nest)
+ARS_censored_pred <-glm.nb(ARS ~ I(mom_age^2) + n_pups + scaled_lat*scaled_density + scaled_lat*year + scaled_lat*predator + scaled_lat*cones_counts + scaled_julian_date*yearn + scaled_julian_date*scaled_density + (1/squirrel_id) + (1/observer) + (1/grid_year), data = nest_censored)
+```
+
+## LRS_model1
+
+```{r}
+viridis_colors <- viridis(10)
+custom_colors <- c(viridis_colors[3], viridis_colors[8])
+scaled_latfigure <- visreg(LRS_model,
+                                      "scaled_lat", by = "mast_encounter1",
+                                      gg = T, overlay = T,
+                                      xlab = "Average Scaled Latency to Return to Nest (seconds)",
+                                      ylab = "Lifetime Reproductive Success",
+                                      point = list(alpha = 0.5,
+                                                   size = 3),
+                                      fill = list(alpha = 0)) +
+  scale_color_manual(values = custom_colors, labels = c("No", "Yes")) +
+  scale_fill_manual(values = custom_colors, labels = c("No", "Yes")) +
+  labs(color = "Mast Encounter?", fill = "Mast Encounter?") +
+  theme_classic() +
+  labs_pubr() + 
+theme(axis.text = element_text(size = 12),
+        legend.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.position = "bottom",
+        plot.margin = margin(15, 15, 30, 30),
+        axis.title.y = element_text(vjust = 5),
+        axis.title.x = element_text(vjust = -1),
+        plot.tag = element_text(size = 22,
+                                face = "bold"))
+scaled_latfigure
+ggsave("Figure1.png", plot = scaled_latfigure)
+
+```
+
+## LRS-MOdel_2
+
+```{r}
+viridis_colors <- viridis(10)
+custom_colors <- c(viridis_colors[3], viridis_colors[8])
+
+percentreturn <- visreg(LRS_model2,
+                        "percent_return", by = "mast_encounter1",
+                        gg = TRUE, overlay = TRUE,
+                        xlab = "Percent Squirrel Returned to the Nest",
+                        ylab = "Lifetime Reproductive Success",
+                        point = list(alpha = 0.5, size = 3),
+                        fill = list(alpha = 0)) +
+  scale_color_manual(values = custom_colors, labels = c("No", "Yes")) +
+  scale_fill_manual(values = custom_colors, labels = c("No", "Yes")) +
+  labs(color = "Mast Encounter?", fill = "Mast Encounter?", linetype = "Mast Encounter?") +
+  theme_classic() +
+  labs_pubr() +
+  theme(axis.text = element_text(size = 12),
+        legend.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.position = "bottom",
+        plot.margin = margin(15, 15, 30, 30),
+        axis.title.y = element_text(vjust = 5),
+        axis.title.x = element_text(vjust = -1),
+        plot.tag = element_text(size = 22, face = "bold")) +
+annotate("text", x = min(LRS_model2$percent_return), y = Inf, label = "Less Attentive", vjust = -1.5, hjust = 0, size = 2) +
+annotate("text", x = max(LRS_model2$percent_return), y = Inf, label = "More Attentive", vjust = -1.5, hjust = 1, size = 2)
+
+print(percentreturn)
+ggsave("Figure2.png", plot = percentreturn)
+
+
+```
+
+```{r}
+model_indices <- which(!is.na(residuals(ARS_model_bin)))
+nest_filtered <- nest[model_indices, ]
+ggplot(nest_filtered, aes(x = cones_counts, y = ARS, color = factor(m_return), linetype = factor(m_return))) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, size = 1.2) +
+  labs(x = "Yearly Cone Counts (Log Scale)", y = "Annual Reproductive Success", color = "Did Squirrel Return to the Nest?", linetype = "Did Squirrel Return to the Nest?") +
+  scale_color_paletteer_d(palette = "ggprism::viridis", labels = c("No", "Yes")) +
+  scale_linetype_manual(values = c("solid", "dashed"), labels = c("No", "Yes")) +
+  scale_x_continuous(trans = "log10") +
+  theme_classic() +
+  labs_pubr() + 
+  theme(axis.text = element_text(size = 8),
+        legend.text = element_text(size = 14),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 12),
+        legend.position = "bottom",
+        plot.margin = margin(15, 15, 30, 30),
+        axis.title.y = element_text(vjust = 5),
+        axis.title.x = element_text(vjust = -1),
+        plot.tag = element_text(size = 22, face = "bold")) +
+  guides(linetype = FALSE)
+  
+```
+
+
+```{r}
+ARS_cones <- visreg2d(ARS_censored_pred,
+                                    "ARS",  
+                                    "scaled_lat",
+                                    plot.type = "gg",
+                                    color = "cones_counts", 
+                                    xlab = "Scaled Latency to Return to Nest (seconds)",
+                                    ylab = "Annual Reproductive Success") +
+  scale_fill_paletteer_c("viridis::mako") +
+  labs(fill = "Cone Availability") +
+  theme_classic() +
+  labs_pubr() + 
+  theme(axis.text = element_text(size = 14),
+        legend.text = element_text(size = 10),
+        axis.title = element_text(size = 16),
+        legend.title = element_text(size = 12),
+        legend.key.size = unit(45, "points"),
+        legend.position = "bottom",
+        legend.title.align = 1,
+        legend.box.spacing = unit(30, "point"),
+        plot.margin = margin(100, 0, 0, 75), 
+        axis.title.y = element_text(vjust = 5),
+        axis.title.x = element_text(vjust = -1),
+        plot.tag = element_text(size = 20,
+                                face = "bold"))
+
+print(ARS_cones)
+ggsave("Figure4.png", plot = ARS_cones)
+
+``
+```
+```{r}
+cones <- visreg2d(ARS_censored_pred,
+                                           "scaled_lat", "cones_counts",
+                                           plot.type = "gg",
+                                           xlab = "Cone Availability",
+                  ylab = str_wrap("Scaled Latency to Return to Nest (seconds)", width = 40)) +
+  scale_fill_paletteer_c("viridis::mako") +
+  labs(fill = "Annual Reproductive Success") +
+  theme_classic() +
+  labs_pubr()+ 
+  theme(axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.title = element_text(size = 14),
+        legend.key.size = unit(45, "points"),
+        legend.position = "bottom",
+        legend.title.align = 1,
+        legend.box.spacing = unit(30, "point"),
+        plot.margin = margin(30, 15, 0, 30), 
+        axis.title.y = element_text(vjust = 5),
+        axis.title.x = element_text(vjust = -1),
+        plot.tag = element_text(size = 24,
+                                face = "bold"))
+
+cones
+ggsave("Figure4.png", plot = cones)
+
+```
