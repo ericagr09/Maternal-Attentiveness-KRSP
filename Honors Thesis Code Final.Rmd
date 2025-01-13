@@ -24,7 +24,6 @@ library(texreg)
 library(apaTables)
 nest <- read.csv("nest_binary.csv")
 nest_censored <- read.csv("nest_censored.csv")
-nest_t_return <- read.csv("nest_t_return.csv")
 LRS <- read.csv("lrs_data.csv")
 personality <- read.csv("personality.csv")
 ## Get an additional numeric binary for m_return 
@@ -32,7 +31,6 @@ nest$m_return_numeric <- ifelse(nest$m_return == "n", 0, 1)
 ## make nest categorical 
 nest$nest <- factor(nest$nest)
 nest_censored$nest <- factor(nest_censored$nest)
-nest_t_return$nest <- factor(nest_t_return$nest)
 ```
 
 ## Defining Variables
@@ -174,6 +172,14 @@ residuals(simulationOutput, quantileFunction = qnorm)
 plot(simulationOutput)
 ```
 
+
+#### edit Jan 13, 2025: running model with n_pups as an offset variable rather than a fixed effect: 
+
+```{r}
+ARS_off_bin <- glm.nb(ARS ~ I(mom_age^2) + m_return*scaled_density + m_return*year + m_return*predator + m_return*cones_counts + scaled_julian_date*year + scaled_julian_date*scaled_density + (1/squirrel_id) + (1/observer) + (1/grid_year) + offset(log(n_pups)), data = nest)
+summary(ARS_off_bin)
+```
+
 ### scaled_latency - continuos measure 
 
 This model is to show if the interaction between latency and a predictor variable influences ARS in any way. Prior models showed that whether or not it was a mast year influenced ARS. In this case, we are using latency to return to pups as a measure of maternal attentiveness, moms with a lower latency are thought to be more attentive, while moms with a higher latency are less attentive.
@@ -198,6 +204,13 @@ residuals(simulationOutput, quantileFunction = qnorm)
 
 ```{r}
 plot(simulationOutput)
+```
+
+#### edit Jan. 13, 2025 - running with n_pups as an offset variable rather than fixed effect
+
+```{r}
+ARS_off_cens <- glm.nb(ARS ~ I(mom_age^2) + scaled_lat*scaled_density + scaled_lat*year + scaled_lat*predator + scaled_lat*cones_counts + scaled_julian_date*yearn + scaled_julian_date*scaled_density + (1/squirrel_id) + (1/observer) + (1/grid_year) + offset(log(n_pups)), data = nest_censored)
+summary(ARS_off_cens)
 ```
 
 # Personality Models
